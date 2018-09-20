@@ -7,6 +7,13 @@ var cookieParser = require('cookie-parser');
 var session = require('express-session');
 var passport = require('passport');
 
+var path = require('path');
+global.appRoot = path.resolve(__dirname);
+
+var http = require('http');
+var https = require('https');
+var sslConfig = require('./ssl-config');
+
 /*
 * body-parser is a piece of express middleware that
 *   reads a form's input and stores it as a javascript
@@ -107,6 +114,33 @@ app.get('/auth/cas',
     res.redirect('/');
   });
 
+  app.start = function(httpOnly) {
+    if (httpOnly === undefined) {
+      httpOnly = process.env.HTTP;
+    }
+    var server = null;
+    if (!httpOnly) {
+      var options = {
+        key: sslConfig.privateKey,
+        cert: sslConfig.certificate,
+      };
+      server = https.createServer(options, app);
+    } else {
+      server = http.createServer(app);
+    }
+    server.listen(app.get('port'), function() {
+      var baseUrl = (httpOnly ? 'http://' : 'https://') + app.get('host') + ':' + app.get('port');
+      app.emit('started', baseUrl);
+      console.log('LoopBack server listening @ %s%s', baseUrl, '/');
+      if (app.get('loopback-component-explorer')) {
+        var explorerPath = app.get('loopback-component-explorer').mountPath;
+        console.log('Browse your REST API at %s%s', baseUrl, explorerPath);
+      }
+    });
+    return server;
+  };
+
+/*
 app.start = function() {
   // start the web server
   return app.listen(function() {
@@ -118,7 +152,7 @@ app.start = function() {
       console.log('Browse your REST API at %s%s', baseUrl, explorerPath);
     }
   });
-};
+};*/
 
 // Bootstrap the application, configure models, datasources and middleware.
 // Sub-apps like REST API are mounted via boot scripts.
